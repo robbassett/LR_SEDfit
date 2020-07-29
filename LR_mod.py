@@ -1,3 +1,5 @@
+import numpy as np
+
 def SED_loss(modf,obsf,obse):
     tobs = np.where(obsf > 0)[0]
 

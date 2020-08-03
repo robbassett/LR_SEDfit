@@ -12,6 +12,7 @@ import BPASS_tools as bpt
 import LR_mod as lrm
 import dust_curves as dm
 from load_photometry import Photometry as pht
+from LRsed import *
 
 
 dust_dic = {'SMC':'SMC',
@@ -150,7 +151,16 @@ class startup_gui(QMainWindow):
         self.ch3.setPixmap(QPixmap('assets/check.png'))
 
     def go(self):
-        print('oops!')
+        self.Rv = float(self.Rvbox.text())
+        self.bdc = dm.DustCurve(dust_dic[self.combo_dust.currentText()])
+        fit_one_SED(14759,
+                    self.bdc,
+                    self.filters,
+                    self.BPASS_folder,
+                    self.photometry,
+                    Rv=self.Rv
+        )
+
                 
 def main():
     app = QApplication(sys.argv)

@@ -15,20 +15,80 @@ from load_photometry import Photometry as pht
 from LRsed import *
 
 
-dust_dic = {'SMC':'SMC',
-            'Reddy (2016)':'reddy16',
+dust_dic = {'Reddy (2016)':'reddy16',
+            'SMC':'SMC',
             'Wild (2011)':'wild',
             'Calzetti (2000)':'calz00b'}
 
+class phd_window(QMainWindow):
+    def __init__(self, filters, parent=None):
+        super(phd_window, self).__init__(parent)
+        self.filters=filters
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(500, 100, 320, 185)
+        self.setWindowTitle('Photometry Definition Widget')
+
+        fnlab = QLabel(self)
+        fnlab.setText('Filename:')
+        fnlab.setGeometry(QRect(20,5,75,50))
+        self.Fnbox = QLineEdit(self)
+        self.Fnbox.setGeometry(QRect(85,20,200,20))
+        self.Fnbox.setText('my_labels.dat')
+
+        mlab = QLabel(self)
+        mlab.setText('Mag. or Flux?:')
+        mlab.setGeometry(QRect(20,40,75,50))
+        self.combo_sys = QComboBox(self)
+        self.combo_sys.setGeometry(QRect(105,40,100,50))
+        self.combo_sys.setObjectName('morf')
+        for k in ['mag','fnu']: self.combo_sys.addItem(k)
+
+        ulab = QLabel(self)
+        ulab.setText('Units?:')
+        ulab.setGeometry(QRect(20,75,75,50))
+        self.combo_unit = QComboBox(self)
+        self.combo_unit.setGeometry(QRect(105,75,150,50))
+        self.combo_unit.setObjectName('unit')
+        for k in ['AB (mag)','Zfourge (mag)','Jy (fnu)','muJy (fnu)']:
+            self.combo_unit.addItem(k)
+
+        gobutt = QPushButton('Generate!',self)
+        gobutt.setToolTip('Generate the blank photometry definition file')
+        gobutt.setGeometry(QRect(20,118,280,50))
+        gobutt.clicked.connect(self.generate)
+
+    def generate(self):
+        lf_out = open(f'{self.Fnbox.text()}','w')
+        lf_out.write('# LRsed photometry definition file\n')
+        lf_out.write(f'# photometric units: {self.combo_unit.currentText()}\n')
+        lf_out.write('#\n')
+        lf_out.write('# Instructions:\n')
+        lf_out.write(f'# Replace X\'s below with columns corresponding to {self.combo_sys.currentText()} and error for each filter\n')
+        lf_out.write('# with indexing beginning at 0 (it\'s python people!).\n')
+        lf_out.write('# To ignore filters simply remove the corresponding line from this file, it will not be considered in the SED fit.\n')
+        lf_out.write('# (note, error column not used for ID or redshift, however a placeholder is required)\n')
+        lf_out.write('# FILTER_NAME  FLUX_COLUMN  ERROR_COLUMN\n')
+        lf_out.write('#\n')
+        lf_out.write('ID         X   X  \n')
+        lf_out.write('redshift   X   X  \n')
+        for k in self.filters.keys():
+            lf_out.write(f'{k}       X   X\n')
+        lf_out.close()
+
+        msg = QMessageBox()
+        msg.setWindowTitle('Photo Def Generated')
+        msg.setText(f'Photometric definition file {self.Fnbox.text()} generated. Open this file to find instructions on setting it up for use with LRsed')
+        msg.exec_()
+        
+        self.close()
+
 class startup_gui(QMainWindow):
+    def __init__(self, parent=None):
+        super(startup_gui, self).__init__(parent)
 
-    def __init__(self):
-        super().__init__()
-
-        self.filters = None
-        self.photometry = None
-        self.BPASS_folder = None
-        self.dust_mod = None
+        self.filters = False
         self.initUI()
 
     def initUI(self):
@@ -101,8 +161,6 @@ class startup_gui(QMainWindow):
         self.ch3.setText('         ')
         self.ch3.setPixmap(QPixmap('assets/x.png'))
         self.ch3.setGeometry(QRect(150,148,20,20))
-        
-        self.show()
 
     def load_filters(self):
         msg = QMessageBox()
@@ -116,29 +174,42 @@ class startup_gui(QMainWindow):
         if fileName:
             self.filters = np.load(fileName,allow_pickle=True).item()
             self.ch1.setPixmap(QPixmap('assets/check.png'))
-
-    def load_photometry(self):
-        msg = QMessageBox()
-        msg.setWindowTitle('Load Photometry')
-        msg.setText('Select the photometry text file')
-        msg.exec_()
         
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        photfile, _ = QFileDialog.getOpenFileName(self,"Select Photometric Data File", "","All Files (*.*)", options=options)
-        if photfile:
+    def load_photometry(self):
+        query = QMessageBox()
+        query.setWindowTitle('New Photometry Definition?')
+        query.setText('Do you need to generate a photometry definition file?')
+        query.setIcon(QMessageBox.Question)
+        query.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        res = query.exec_()
+
+        if res == QMessageBox.Yes:
+            if not self.filters:
+                self.load_filters()
+            self.phdw = phd_window(self.filters)
+            self.phdw.show()
+        else:
             msg = QMessageBox()
             msg.setWindowTitle('Load Photometry')
-            msg.setText('Select the photometry definition file')
+            msg.setText('Select the photometry text file')
             msg.exec_()
-            
+        
             options = QFileDialog.Options()
             options |= QFileDialog.DontUseNativeDialog
-            photdef, _ = QFileDialog.getOpenFileName(self,"Select Photometry Definition File", "","All Files (*.*)", options=options)
+            photfile, _ = QFileDialog.getOpenFileName(self,"Select Photometric Data File", "","All Files (*.*)", options=options)
+            if photfile:
+                msg = QMessageBox()
+                msg.setWindowTitle('Load Photometry')
+                msg.setText('Select the photometry definition file')
+                msg.exec_()
+            
+                options = QFileDialog.Options()
+                options |= QFileDialog.DontUseNativeDialog
+                photdef, _ = QFileDialog.getOpenFileName(self,"Select Photometry Definition File", "","All Files (*.*)", options=options)
 
-            if photdef:
-                self.photometry = pht(photfile,photdef)
-                self.ch2.setPixmap(QPixmap('assets/check.png'))
+                if photdef:
+                    self.photometry = pht(photfile,photdef)
+                    self.ch2.setPixmap(QPixmap('assets/check.png'))
 
     def get_BPfold(self):
         msg = QMessageBox()
@@ -153,6 +224,7 @@ class startup_gui(QMainWindow):
     def go(self):
         self.Rv = float(self.Rvbox.text())
         self.bdc = dm.DustCurve(dust_dic[self.combo_dust.currentText()])
+        
         fit_one_SED(14759,
                     self.bdc,
                     self.filters,
@@ -161,12 +233,12 @@ class startup_gui(QMainWindow):
                     Rv=self.Rv
         )
 
-                
+            
 def main():
     app = QApplication(sys.argv)
-    ex = startup_gui()
+    main = startup_gui()
+    main.show()
     sys.exit(app.exec_())
-
 
 if __name__ == '__main__':
     main()

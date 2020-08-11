@@ -1,3 +1,5 @@
+from astropy.cosmology import WMAP9 as cosmo
+import astropy.units as units
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
 import numpy as np
@@ -27,8 +29,15 @@ def fit_photometry(tphot,fnames):
 
     return flux,err
 
-def fit_one_SED(gal_ID,base_dust_curve,filters,bpass_folder,photometry,EBVres=0.0025,nages=33,Rv=2.74):
+def fit_one_SED(gal_ID,base_dust_curve,filters,bpass_folder,photometry,EBVres=0.0025,Rv=2.74,maxage=5e8):
 
+    # Determine which ages to use based on age of the universe at z=redshift
+    redshift = photometry.data[str(gal_ID)]['redshift']
+    ages = 10.**(np.array([6. + 0.1*_i for _i in range(51)]))
+    cage = cosmo.age(redshift).to_value(units.year)
+    tage = np.where(cage-maxage > ages)[0]
+    nages = len(tage)
+    
     # BPASS SPECTRA FILE NAMES/LOCATIONS
     bpass_spectra = glob.glob(f'{bpass_folder}/spectra*.gz')
     
@@ -46,52 +55,75 @@ def fit_one_SED(gal_ID,base_dust_curve,filters,bpass_folder,photometry,EBVres=0.
 
     # DETERMINE WHICH FILTERS ARE IN USE AND SET UP PHOTOMETRY FOR FITTING
     fit_filters = photometry.get_fit_filters(gal_ID,filters)
-    redshift = photometry.data[str(gal_ID)]['redshift']
     wav = filter_wavs(filters,fit_filters)
     flux,error = fit_photometry(photometry.data[str(gal_ID)]['phot'],fit_filters)
+
+    grid,tft = bpt.make_grid(bpass_spectra[0],filters,fit_filters,redshift)
+    alosses = np.zeros(len(bpass_spectra))
+    aopts   = np.zeros((len(bpass_spectra),grid.shape[0]))
+    aEBVs   = np.zeros(len(bpass_spectra))
+    for j,bps in enumerate(bpass_spectra):
+        grid,tft = bpt.make_grid(bps,filters,fit_filters,redshift)
+
+        tFit = list(set(tft))
+        theta = np.zeros(grid.shape[0])*1.e8
+        losses = np.copy(EBVs)*0.
+        topts = np.empty((len(EBVs),len(theta)))
+        for i,EBV in enumerate(EBVs):
+
+            dust_grid = dm.add_grid(wav,grid,base_dust_curve.wav,base_dust_curve.base_curve,EBV,redshift,Rv=Rv)
+            Res = opt.minimize(fun = lrm.cost,
+                               x0 = theta,
+                               args = (dust_grid[:,tFit],flux[tFit],error[tFit]),
+                               method = 'TNC',
+                               jac = lrm.grad,
+                               bounds = bounds
+                )
+
+            theta_opt = Res.x
+            SED_opt = lrm.h(theta_opt,dust_grid)
+            topts[i,:] = theta_opt
+            losses[i] = lrm.SED_loss(SED_opt,flux[tFit],error[tFit])
+
+        tbest = np.where(losses == np.min(losses))[0]
+        tEBV = EBVs[tbest]
+        tOPT = topts[tbest][0,:]
+        alosses[j] = losses[tbest]
+        aopts[j] = tOPT
+        aEBVs[j] = tEBV
+
+    abest = np.where(alosses == np.min(alosses))[0][0]
+    EBV_out = aEBVs[abest]
+    OPT_out = aopts[abest]
     
-    bpmn=5 # JUST FIT ONE MODEL NOW, WILL INCLUDE LOOP OVER ALL MODELS LATER
-    grid,tft = bpt.make_grid(bpass_spectra[bpmn],filters,fit_filters,redshift)
-
-    tFit = list(set(tft))
-    theta = np.zeros(grid.shape[0])*1.e8
-    losses = np.copy(EBVs)*0.
-    topts = np.empty((len(EBVs),len(theta)))
-    for i,EBV in enumerate(EBVs):
-
-        dust_grid = dm.add_grid(wav,grid,base_dust_curve.wav,base_dust_curve.base_curve,EBV,redshift,Rv=Rv)
-        Res = opt.minimize(fun = lrm.cost,
-                           x0 = theta,
-                           args = (dust_grid[:,tFit],flux[tFit],error[tFit]),
-                           method = 'TNC',
-                           jac = lrm.grad,
-                           bounds = bounds
-              )
-
-        theta_opt = Res.x
-        SED_opt = lrm.h(theta_opt,dust_grid)
-        topts[i,:] = theta_opt
-        losses[i] = lrm.SED_loss(SED_opt,flux[tFit],error[tFit])
-
-    tbest = np.where(losses == np.min(losses))[0]
-    tEBV = EBVs[tbest]
-    tOPT = topts[tbest][0,:]
-    swav,out_spec = bpt.out_spec(tOPT,
-                                 bpass_spectra[bpmn],
+    swav,out_spec = bpt.out_spec(OPT_out,
+                                 bpass_spectra[abest],
                                  redshift,
                                  base_dust_curve.wav,
                                  base_dust_curve.base_curve,
-                                 tEBV
+                                 EBV_out
                     )
     bpf,tf2 = bpt.BPASS_phot(swav,out_spec,fit_filters,filters,redshift)
 
-    F = plt.figure()
-    ax = F.add_subplot(111)
-    ax.plot(swav,out_spec,'k-',lw=.5)
-    ax.plot(wav[tFit]/(redshift+1.),bpf[tFit],'g^')
-    ax.plot(wav/(redshift+1.),bpf,'g^',mfc='None')
-    ax.plot(wav/(redshift+1.),flux,'bo',mfc='None')
-    ax.plot(wav[tFit]/(redshift+1.),flux[tFit],'bo')
-    ax.set_xlim(600,13999)
-    plt.show()
-    
+    return {'wav':swav,
+            'spec':out_spec,
+            'BPASS_mod':bpass_spectra[abest],
+            'theta_opt':OPT_out,
+            'EBV':EBV_out,
+            'attenuation_curve':np.exp((-1.)*(np.interp(swav,base_dust_curve.wav,base_dust_curve.base_curve)*EBV_out*Rv/1.086)),
+            'z':redshift,
+            'obs_phot':{
+                'wav':wav/(1.+redshift),
+                'flx':flux,
+                'err':error,
+                'fit':tFit
+            }
+        }
+
+if __name__ == '__main__':
+    ID = 14759
+    dc = dm.DustCurve('reddy16')
+    flt = np.load('./COSMOS_filters.npy',allow_pickle=True).item()  
+    phot = pht('myphot.dat','myphot_labels.dat')
+
+    fit_one_SED(ID,dc,flt,'../../BPASS/bp2',phot)

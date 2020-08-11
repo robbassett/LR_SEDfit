@@ -13,12 +13,58 @@ import LR_mod as lrm
 import dust_curves as dm
 from load_photometry import Photometry as pht
 from LRsed import *
+from plotting_scripts import *
 
 
 dust_dic = {'Reddy (2016)':'reddy16',
             'SMC':'SMC',
             'Wild (2011)':'wild',
             'Calzetti (2000)':'calz00b'}
+
+class sed_window(QMainWindow):
+    def __init__(self, outputs, parent=None):
+        super(sed_window, self).__init__(parent)
+        self.outputs = outputs
+
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(0, 250, 600, 75)
+        self.setWindowTitle('SED Fitting Window')
+
+        idlab = QLabel(self)
+        idlab.setText('Galaxy ID:')
+        idlab.setGeometry(QRect(15,10,130,50))
+        self.combo_id = QComboBox(self)
+        self.combo_id.setGeometry(QRect(85,10,130,50))
+        self.combo_id.setObjectName('tmp_ID')
+        for k in self.outputs.keys(): self.combo_id.addItem(k)
+
+        spbutt = QPushButton('Show SED',self)
+        spbutt.setToolTip('Display Spectrum')
+        spbutt.setGeometry(QRect(230,20,100,25))
+        spbutt.clicked.connect(self.disp_spec)
+
+        shbutt = QPushButton('Show SF-hist.',self)
+        shbutt.setToolTip('Display Spectrum')
+        shbutt.setGeometry(QRect(340,20,120,25))
+        shbutt.clicked.connect(self.disp_sfh)
+
+        svbutt = QPushButton('Save Output',self)
+        svbutt.setToolTip('Display Spectrum')
+        svbutt.setGeometry(QRect(470,20,100,25))
+        svbutt.clicked.connect(self.save_out)
+
+    def disp_spec(self):
+        SED_plot(self.outputs,self.combo_id.currentText())
+
+    def disp_sfh(self):
+        SFhist_plot(self.outputs,self.combo_id.currentText())
+
+    def save_out(self):
+        text, okPressed = QInputDialog.getText(self, "Save Outputs","Filename (no ext.):", QLineEdit.Normal, "")
+        if okPressed and text != '':
+            np.save(f'./{text}.npy',self.outputs)
 
 class phd_window(QMainWindow):
     def __init__(self, filters, parent=None):
@@ -27,7 +73,7 @@ class phd_window(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setGeometry(500, 100, 320, 185)
+        self.setGeometry(400, 0, 320, 185)
         self.setWindowTitle('Photometry Definition Widget')
 
         fnlab = QLabel(self)
@@ -120,7 +166,7 @@ class startup_gui(QMainWindow):
         self.toolbar.addAction(gobutt)
         self.toolbar.addAction(exitAct)
         
-        self.setGeometry(100, 100, 320, 185)
+        self.setGeometry(0, 0, 320, 185)
         self.setWindowTitle('Startup Widget')
 
         dlab = QLabel(self)
@@ -227,16 +273,22 @@ class startup_gui(QMainWindow):
     def go(self):
         self.Rv = float(self.Rvbox.text())
         self.bdc = dm.DustCurve(dust_dic[self.combo_dust.currentText()])
-        
-        fit_one_SED(14759,
+
+        self.SEDoutputs = {}
+        for k in self.photometry.data.keys():
+            tmf = fit_one_SED(k,
                     self.bdc,
                     self.filters,
                     self.BPASS_folder,
                     self.photometry,
                     Rv=self.Rv
-        )
-
+            )
+            self.SEDoutputs[k] = tmf
             
+        self.sedw = sed_window(self.SEDoutputs)
+        self.sedw.show()
+        
+        
 def main():
     app = QApplication(sys.argv)
     main = startup_gui()

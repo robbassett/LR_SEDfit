@@ -14,9 +14,19 @@ def SFhist_plot(dat,k):
     uage = cosmo.age(z).to_value(units.year)
     uage = uage*units.year
     zs = np.zeros(len(topt))
+    lbt = np.zeros(len(topt))
     for i in range(len(zs)):
         tuage = (uage-(ages[i])).to_value(units.Gyr)
+        
+        lbt[i] = uage.value-ages[i].value
         zs[i] = z_at_value(cosmo.age,tuage*units.Gyr)
+
+    age_ticks = [10.**_e for _e in [6.,7.,8.,9.]]
+    zticks = np.zeros(len(age_ticks))
+    for i in range(len(zticks)):
+        tuage = (uage-(age_ticks[i]*units.year)).to_value(units.Gyr)
+        zticks[i] = round(100.*z_at_value(cosmo.age,tuage*units.Gyr))/100.
+    
         
     sfr = np.zeros(len(topt))
     for i in range(len(ages)):
@@ -31,14 +41,20 @@ def SFhist_plot(dat,k):
     ax= F.add_subplot(211)
     ax.loglog(ages,topt,'ko')
     ax.plot(ages,topt,'k-')
-    ax.set_xlabel('Log(age)')
+    ax.set_xlabel('Age (years)')
     ax.set_ylabel('Stellar Mass')
 
     ax= F.add_subplot(212)
-    ax.plot(zs,sfr,'ko')
-    ax.plot(zs,sfr,'k-')
-    ax.set_xlabel('redshift')
+    ax.semilogx(ages,sfr,'ko')
+    ax.plot(ages,sfr,'k-')
+    xa = ax.twiny()
+    xa.semilogx(ages,sfr,'ko')
+    xa.set_xticks(age_ticks)
+    xa.set_xticklabels(zticks)
+    xa.set_xlabel('redshift')
+    ax.set_xlabel('lookback time (years)')
     ax.set_ylabel('SFR')
+    plt.tight_layout()
     plt.show()
 
 def SED_plot(dat,k):
@@ -62,3 +78,9 @@ def SED_plot(dat,k):
     ax.set_ylim(0,1.1*np.max(pflx[pft]))
     ax.legend(ncol=2)
     plt.show()
+
+if __name__ == '__main__':
+    dat = np.load('test_output.npy',allow_pickle=True).item()
+    for k in dat.keys():
+       SFhist_plot(dat,k)
+        

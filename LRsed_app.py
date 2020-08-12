@@ -97,7 +97,7 @@ class phd_window(QMainWindow):
         self.combo_unit = QComboBox(self)
         self.combo_unit.setGeometry(QRect(105,75,150,50))
         self.combo_unit.setObjectName('unit')
-        for k in ['AB (mag)','Zfourge (mag)','Jy (fnu)','muJy (fnu)']:
+        for k in ['AB (mag)','Zfourge (fnu)','Jy (fnu)','muJy (fnu)']:
             self.combo_unit.addItem(k)
 
         gobutt = QPushButton('Generate!',self)

@@ -15,13 +15,13 @@ of LR_SEDfit is __linear regression__. In a nutshell, LR_SEDfit loops through ea
 and for each model loops through a range of possible dust attenuation values (E(B-V)). For each model+E(B-V) combination, LR_SEDfit then determines
 the linear combination of each of the 50 different aged SEDs included in the given BPASS metallicity model that minimized the cost function: 
 
-[](/cost_func.png)
+<img src="/cost_func.png" width="700">
 
 Where *m* is the number of photometric bands being considered,*X* is the grid of model photometric fluxes, *Y* are the observed fluxes for a
 given object, and *$\sigma_Y$* are the associated measurement errors on the observed fluxes. Here the function *h($\Theta$, X)* describes a 1D vector
 that represents the output SED where:
 
-[](/htheta.png)
+<img src="/htheta.png" width=500>
 
 The gradients function is then defined as the partial derivatives of the cost function with respect to each element of *$\Theta$*. For each model and E(B-V) combination, the optimal $\Theta$ is determined using *scipy.optimize.minimize* with the truncated Newton algorithm. 
 

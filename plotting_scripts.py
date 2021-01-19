@@ -57,6 +57,60 @@ def SFhist_plot(dat,k):
     plt.tight_layout()
     plt.show()
 
+def SFhist_plot_big(topt,z,bpf):
+    topt = np.reshape(topt,(len(bpf),33))
+    lages = np.zeros(len(topt[0]))
+    for i in range(len(lages)):
+        lages[i] = 6.0+0.1*i
+    ages = 10.**lages
+    ages = ages*units.year
+    uage = cosmo.age(z).to_value(units.year)
+    uage = uage*units.year
+    zs = np.zeros(len(topt))
+    lbt = np.zeros(len(topt))
+    for i in range(len(zs)):
+        tuage = (uage-(ages[i])).to_value(units.Gyr)
+        
+        lbt[i] = uage.value-ages[i].value
+        zs[i] = z_at_value(cosmo.age,tuage*units.Gyr)
+
+    age_ticks = [10.**_e for _e in [6.,7.,8.,9.]]
+    aaa = [r'10$^6$',r'10$^7$',r'10$^8$',r'10$^9$']
+    zticks = np.zeros(len(age_ticks))
+    atlocs = np.zeros(len(age_ticks))
+    for i in range(len(zticks)):
+        tuage = (uage-(age_ticks[i]*units.year)).to_value(units.Gyr)
+        zticks[i] = round(100.*z_at_value(cosmo.age,tuage*units.Gyr))/100.
+        atlocs[i] = np.where(lages == np.log10(age_ticks[i]))[0]
+    
+    """ 
+    sfr = np.zeros(len(topt))
+    for i in range(len(ages)):
+        if i == 0:
+            lage = 0.
+        else:
+            lage = ages[i-1]
+        dage = ages[i]-lage
+        sfr[i] = topt[i]/dage.value
+    """
+    metal = np.linspace(0,len(bpf)-1,len(bpf))
+    mticks = []
+    for f in bpf:
+        mticks.append(f.split('/')[-1].split('.')[-3])
+
+    F = plt.figure()
+    ax= F.add_subplot(111)
+    r,c = np.where(topt == 0)
+    topt[r,c] = np.inf
+    ax.imshow((topt))
+    ax.set_xlabel('Age (years)')
+    ax.set_ylabel('Metallicity')
+    ax.set_yticks(metal)
+    ax.set_yticklabels(mticks)
+    ax.set_xticks(atlocs)
+    ax.set_xticklabels(aaa)
+    plt.show()
+
 def SED_plot(dat,k):
 
     tmo = dat[k]
@@ -80,7 +134,8 @@ def SED_plot(dat,k):
     plt.show()
 
 if __name__ == '__main__':
-    dat = np.load('test_output.npy',allow_pickle=True).item()
+    dat = np.load('full_out.npy',allow_pickle=True).item()
     for k in dat.keys():
-       SFhist_plot(dat,k)
-        
+        print(k)
+        SFhist_plot(dat,k)
+        SED_plot(dat,k)

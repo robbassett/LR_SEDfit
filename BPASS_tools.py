@@ -22,30 +22,48 @@ def flux_conv(wav,L,z):
     return out
 
 # Get BPASS fluxes in each photometric filter
-def BPASS_phot(wav,spec,filts,z):
+def BPASS_phot(wav,spec,fnames,filts,z):
 
-    pwavs = []
     pflxs = []
     tfit  = []
-    for i,k in enumerate(filts.keys()):
+    for i,k in enumerate(fnames):
+        fwav = filts[k]['wav']
+        fT = filts[k]['T']
+        t = np.where(fT > 0.01)[0]
 
-        pwavs.append(np.average(filts[k]['wav'],weights=filts[k]['T']))
-        tms = np.interp(filts[k]['wav'],wav*(1.+z),spec)
-        pflxs.append(np.average(tms,weights=filts[k]['T']))
+        pwav = (np.average(fwav,weights=fT))/(1.+z)
+        tms = np.interp(fwav,wav*(1.+z),spec)
+        pflxs.append(np.average(tms,weights=fT))
+        minw,maxw = np.min(fwav[t])/(1.+z),np.max(fwav[t])/(1.+z)
 
-        if np.min(filts[k]['wav']/(1.+z)) > 1216.:
-            tfit.append(i)
+        # Leave bands below LAF and beyond 1.5 micron out
+        if  minw > 1216.:
+            if minw < 5007. and maxw > 5007.:
+                pass
+            else:
+                tfit.append(i)
 
-    return np.array(pwavs),np.array(pflxs),tfit
+    return np.array(pflxs),tfit
 
 # Build grid of BPASS models at fixed metallicity
-def make_grid(tmd,filts,z,nSED=33):
+def make_grid(tmd,filts,fnames,z,nSED=33):
     da = np.loadtxt(tmd)
-    grid_out = np.empty((nSED,len(list(filts.keys()))))
+    grid_out = np.empty((nSED,len(fnames)))
+    phot_out = np.empty((2,len(fnames)))
     for i in range(nSED):
-        filt_wavs,grid_out[i,:],tft = BPASS_phot(da[:,0],flux_conv(da[:,0],da[:,i+1],z),filts,z)
+        grid_out[i,:],tft = BPASS_phot(da[:,0],flux_conv(da[:,0],da[:,i+1],z),fnames,filts,z)
+            
+    return grid_out,tft
 
-    return filt_wavs,grid_out,tft
+def make_big_grid(ffs,filts,fnames,z,nSED=33):
+
+    grid_out = np.empty((nSED*len(ffs),len(fnames)))
+    for j,fn in enumerate(ffs):
+        da = np.loadtxt(fn)
+        for i in range(nSED):
+            grid_out[j*nSED + i,:],tft = BPASS_phot(da[:,0],flux_conv(da[:,0],da[:,i+1],z),fnames,filts,z)
+            
+    return grid_out,tft
 
 # Create the output spectrum after running linear regression
 def out_spec(theta,tmod,z,ll,bdc,ebv,Rv=2.74,nSED=33):
@@ -54,4 +72,17 @@ def out_spec(theta,tmod,z,ll,bdc,ebv,Rv=2.74,nSED=33):
     dc = np.interp(da[:,0],ll,np.exp((-1.)*(bdc*ebv*Rv/1.086)))
     for ii in range(nSED):
         spec+=theta[ii]*flux_conv(da[:,0],da[:,ii+1],z)*dc
+    return da[:,0],spec
+
+def out_spec_big(tOPT,mods,z,ll,bdc,ebv,fesc,Rv=2.74,nSED=33):
+    
+    da   = np.loadtxt(mods[0])
+    spec = np.empty(da.shape[0])
+    dc = np.interp(da[:,0],ll,np.exp((-1.)*(bdc*ebv*Rv/1.086)))
+    topt = np.reshape(tOPT,(len(mods),nSED))
+    for i,mod in enumerate(mods):
+        td = np.loadtxt(mod)
+        for j in range(nSED):
+            spec += topt[i][j]*flux_conv(td[:,0],td[:,j+1],z)*dc
+
     return da[:,0],spec

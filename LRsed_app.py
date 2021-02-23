@@ -166,7 +166,7 @@ class startup_gui(QMainWindow):
         self.toolbar.addAction(gobutt)
         self.toolbar.addAction(exitAct)
         
-        self.setGeometry(0, 0, 320, 185)
+        self.setGeometry(0, 0, 320, 210)
         self.setWindowTitle('Startup Widget')
 
         dlab = QLabel(self)
@@ -184,34 +184,43 @@ class startup_gui(QMainWindow):
         self.Rvbox.setGeometry(QRect(245,55,60,20))
         self.Rvbox.setText('2.74')
 
+        slab = QLabel(self)
+        slab.setText('Mix Metals?:')
+        slab.setGeometry(QRect(15,65,130,50))
+        self.combo_slab = QComboBox(self)
+        self.combo_slab.setGeometry(QRect(85,65,130,50))
+        self.combo_slab.setObjectName('mix_flag')
+        for k in ['No','Yes']: self.combo_slab.addItem(k)
+
         filt_lab = QLabel(self)
         filt_lab.setText('             Filters?')
-        filt_lab.setGeometry(QRect(15,75,120,50))
+        filt_lab.setGeometry(QRect(15,100,120,50))
         filt_lab.setFont(QFont("Times", 18,QFont.Bold))
         self.ch1 = QLabel(self)
         self.ch1.setText('         ')
         self.ch1.setPixmap(QPixmap('assets/x.png'))
-        self.ch1.setGeometry(QRect(150,88,20,20))
+        self.ch1.setGeometry(QRect(150,113,20,20))
 
         phot_lab = QLabel(self)
         phot_lab.setText('    Photometry?')
-        phot_lab.setGeometry(QRect(15,105,150,50))
+        phot_lab.setGeometry(QRect(15,130,150,50))
         phot_lab.setFont(QFont("Times", 18,QFont.Bold))
         self.ch2 = QLabel(self)
         self.ch2.setText('         ')
         self.ch2.setPixmap(QPixmap('assets/x.png'))
-        self.ch2.setGeometry(QRect(150,118,20,20))
+        self.ch2.setGeometry(QRect(150,143,20,20))
 
         fold_lab = QLabel(self)
         fold_lab.setText('BPASS Folder?')
-        fold_lab.setGeometry(QRect(15,135,150,50))
+        fold_lab.setGeometry(QRect(15,160,150,50))
         fold_lab.setFont(QFont("Times", 18,QFont.Bold))
         self.ch3 = QLabel(self)
         self.ch3.setText('         ')
         self.ch3.setPixmap(QPixmap('assets/x.png'))
-        self.ch3.setGeometry(QRect(150,148,20,20))
+        self.ch3.setGeometry(QRect(150,173,20,20))
 
     def load_filters(self):
+        
         msg = QMessageBox()
         msg.setWindowTitle('Load Filters')
         msg.setText('Select the filter definition file (.npy)')
@@ -223,7 +232,7 @@ class startup_gui(QMainWindow):
         if fileName:
             self.filters = np.load(fileName,allow_pickle=True).item()
             self.ch1.setPixmap(QPixmap('assets/check.png'))
-        
+            
     def load_photometry(self):
         query = QMessageBox()
         query.setWindowTitle('New Photometry Definition?')
@@ -273,17 +282,29 @@ class startup_gui(QMainWindow):
     def go(self):
         self.Rv = float(self.Rvbox.text())
         self.bdc = dm.DustCurve(dust_dic[self.combo_dust.currentText()])
-
+        
         self.SEDoutputs = {}
-        for k in self.photometry.data.keys():
-            tmf = fit_one_SED(k,
-                    self.bdc,
-                    self.filters,
-                    self.BPASS_folder,
-                    self.photometry,
-                    Rv=self.Rv
-            )
-            self.SEDoutputs[k] = tmf
+
+        if self.combo_slab.currentText() == 'No':
+            for k in self.photometry.data.keys():
+                tmf = fit_one_SED(k,
+                        self.bdc,
+                        self.filters,
+                        self.BPASS_folder,
+                        self.photometry,
+                        Rv=self.Rv
+                )
+                self.SEDoutputs[k] = tmf
+        else:
+            for k in self.photometry.data.keys():
+                tmf = fit_one_SED_big(k,
+                        self.bdc,
+                        self.filters,
+                        self.BPASS_folder,
+                        self.photometry,
+                        Rv=self.Rv
+                )
+                self.SEDoutputs[k] = tmf
             
         self.sedw = sed_window(self.SEDoutputs)
         self.sedw.show()

@@ -296,6 +296,7 @@ class startup_gui(QMainWindow):
                 )
                 self.SEDoutputs[k] = tmf
         else:
+            print('Go big!')
             for k in self.photometry.data.keys():
                 tmf = fit_one_SED_big(k,
                         self.bdc,

@@ -83,6 +83,6 @@ def out_spec_big(tOPT,mods,z,ll,bdc,ebv,fesc,Rv=2.74,nSED=33):
     for i,mod in enumerate(mods):
         td = np.loadtxt(mod)
         for j in range(nSED):
-            spec += topt[i][j]*flux_conv(td[:,0],td[:,j+1],z)*dc
+            spec += topt[i][j]*flux_conv(td[:,0],td[:,j+1],z)
 
     return da[:,0],spec
